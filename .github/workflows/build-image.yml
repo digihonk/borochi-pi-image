@@ -25,6 +25,24 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Checkout borochi-docs
+        uses: actions/checkout@v4
+        with:
+          repository: digihonk/borochi-docs
+          path: borochi-docs
+        continue-on-error: true  # Image baut auch ohne Doku weiter (Fallback-Index.html)
+
+      - name: Build offline docs site
+        if: hashFiles('borochi-docs/mkdocs.yml') != ''
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs mkdocs-material pymdown-extensions
+          DOCS_OUT="$(pwd)/stage-borochi/03-docs/files/opt/borochi/docs-site"
+          rm -rf "$DOCS_OUT"
+          mkdir -p "$DOCS_OUT"
+          mkdocs build --strict -f borochi-docs/mkdocs.yml -d "$DOCS_OUT"
+          echo "Built docs site: $(du -sh "$DOCS_OUT" | cut -f1)"
+
       - name: Resolve tag
         id: tag
         run: |

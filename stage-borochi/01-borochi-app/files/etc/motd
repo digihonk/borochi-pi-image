@@ -1,0 +1,16 @@
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │   Borochi Home Command Center — Raspberry Pi Edition         │
+  │                                                              │
+  │   Dashboard:  http://borochi.local                           │
+  │   Anleitung:  http://borochi.local:81                        │
+  │                                                              │
+  │   Befehle:                                                   │
+  │     sudo borochi-setup     Waveshare-IPs konfigurieren       │
+  │     sudo borochi-update    Borochi auf neueste Version       │
+  │     borochi-doctor         Diagnose-Tool                     │
+  │                                                              │
+  │   © Marcel Ebbert  ·  kein offizielles Borochi-Produkt       │
+  └──────────────────────────────────────────────────────────────┘
+
