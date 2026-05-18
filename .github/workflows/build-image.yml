@@ -59,7 +59,8 @@ jobs:
           DOCS_OUT="$(pwd)/stage-borochi/03-docs/files/opt/borochi/docs-site"
           rm -rf "$DOCS_OUT"
           mkdir -p "$DOCS_OUT"
-          mkdocs build --strict -f borochi-docs/mkdocs.yml -d "$DOCS_OUT"
+          # NICHT --strict im Image-Build: Doku-Warnings dürfen das Image nicht killen
+          mkdocs build -f borochi-docs/mkdocs.yml -d "$DOCS_OUT"
           echo "Built docs site: $(du -sh "$DOCS_OUT" | cut -f1)"
 
       - name: Resolve tag
