@@ -27,8 +27,8 @@ if [ ! -f /opt/borochi/docs-site/index.html ]; then
 <h1>Borochi-Anleitung</h1>
 <p>Die statische Doku-Site wurde beim Image-Build nicht erzeugt
 (<code>mkdocs build</code>-Step war nicht aktiv).</p>
-<p>Online verfügbar unter: <a href="https://docs.borochi.io">docs.borochi.io</a>
-(falls verfügbar) oder im borochi-docs-Repository auf GitHub.</p>
+<p>Online verfügbar unter:
+<a href="https://digihonk.github.io/borochi-docs/">digihonk.github.io/borochi-docs</a>.</p>
 <p>Bei Fragen: <code>ssh borochi@borochi.local</code> → <code>borochi-doctor</code>.</p>
 </body></html>
 EOF
