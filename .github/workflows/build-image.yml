@@ -17,12 +17,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Free up disk space
-        # pi-gen braucht ~15-20 GB freien Platz. GitHub-Runner haben 14 GB frei.
-        # Diese Action löscht .NET-SDK, Android-Tools, Haskell, Boost-Libs → +25 GB
+        # pi-gen braucht ~15-20 GB freien Platz. Standard-Runner hat 14 GB frei.
+        # Diese Action löscht .NET-SDK, Android-Tools, Haskell, Boost → +25 GB
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: true
@@ -37,15 +37,13 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Checkout borochi-docs
+      - name: Checkout borochi-docs (für Offline-Doku)
         uses: actions/checkout@v4
         with:
           repository: digihonk/borochi-docs
           path: borochi-docs
-        continue-on-error: true  # Image baut auch ohne Doku weiter (Fallback-Index.html)
+        continue-on-error: true
 
       - name: Build offline docs site
         if: hashFiles('borochi-docs/mkdocs.yml') != ''
@@ -59,7 +57,6 @@ jobs:
           DOCS_OUT="$(pwd)/stage-borochi/03-docs/files/opt/borochi/docs-site"
           rm -rf "$DOCS_OUT"
           mkdir -p "$DOCS_OUT"
-          # NICHT --strict im Image-Build: Doku-Warnings dürfen das Image nicht killen
           mkdocs build -f borochi-docs/mkdocs.yml -d "$DOCS_OUT"
           echo "Built docs site: $(du -sh "$DOCS_OUT" | cut -f1)"
 
@@ -72,54 +69,58 @@ jobs:
             echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install pi-gen dependencies (native build)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            quilt parted qemu-user-static debootstrap zerofree zip \
-            dosfstools libarchive-tools libcap2-bin grep rsync \
-            xz-utils file git curl bc qemu-utils kpartx pigz arch-test
-          # binfmt_misc für arm-Emulation
-          sudo update-binfmts --enable qemu-arm
-          sudo update-binfmts --enable qemu-aarch64 || true
+      # Die offizielle pi-gen Community-Action — kümmert sich um QEMU, binfmt,
+      # privileged Docker, loop-mounts. Das ist der zuverlässige Weg.
+      - name: Build Pi image
+        id: pi-gen
+        uses: usimd/pi-gen-action@v1
+        with:
+          # Image-Basis
+          image-name: borochi-pi
+          release: bookworm
+          # Unser Stage einhängen NACH stage2 (= Lite, ohne Desktop)
+          stage-list: stage0 stage1 stage2 ./stage-borochi
+          # System-Defaults
+          hostname: borochi
+          locale: de_DE.UTF-8
+          keyboard-keymap: de
+          keyboard-layout: German
+          timezone: Europe/Berlin
+          username: borochi
+          password: borochi
+          disable-first-boot-user-rename: 1
+          enable-ssh: 1
+          # Kompression
+          compression: xz
+          compression-level: 6
+          # Verbose damit wir sehen wo's hakt
+          verbose-output: true
 
-      - name: Prepare pi-gen workdir
-        run: |
-          # pi-gen erwartet Stages parallel zu seinem Repo
-          cp -r stage-borochi pi-gen/
-          cp config pi-gen/config
-          echo "Stages: $(ls pi-gen | grep ^stage-)"
-
-      - name: Build image (pi-gen native)
-        working-directory: pi-gen
-        run: |
-          sudo CONTINUE=0 ./build.sh -c config
-
-      - name: Locate output
+      - name: Rename and hash output
         id: out
-        working-directory: pi-gen
         run: |
-          IMG=$(ls -t deploy/*.img.xz 2>/dev/null | head -1)
-          if [ -z "$IMG" ]; then
-            echo "Kein Image gebaut! Inhalt deploy/:"
-            ls -la deploy/ || true
+          IMG="${{ steps.pi-gen.outputs.image-path }}"
+          if [ -z "$IMG" ] || [ ! -f "$IMG" ]; then
+            echo "✗ Kein Image-Output von pi-gen-action!"
+            ls -la deploy/ 2>/dev/null || true
             exit 1
           fi
-          NEW="deploy/borochi-pi-${{ steps.tag.outputs.name }}.img.xz"
+          NEW_DIR=$(dirname "$IMG")
+          NEW_NAME="borochi-pi-${{ steps.tag.outputs.name }}.img.xz"
+          NEW="${NEW_DIR}/${NEW_NAME}"
           mv "$IMG" "$NEW"
-          # Hash für Verifikation
-          sha256sum "$NEW" > "$NEW.sha256"
+          sha256sum "$NEW" > "${NEW}.sha256"
           echo "img=$NEW" >> "$GITHUB_OUTPUT"
-          echo "sha=$NEW.sha256" >> "$GITHUB_OUTPUT"
-          echo "Built: $NEW ($(stat -c%s "$NEW" | numfmt --to=iec))"
+          echo "sha=${NEW}.sha256" >> "$GITHUB_OUTPUT"
+          ls -lh "$NEW" "${NEW}.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: borochi-pi-${{ steps.tag.outputs.name }}
           path: |
-            pi-gen/${{ steps.out.outputs.img }}
-            pi-gen/${{ steps.out.outputs.sha }}
+            ${{ steps.out.outputs.img }}
+            ${{ steps.out.outputs.sha }}
           retention-days: 30
 
       - name: Create GitHub Release
@@ -133,14 +134,21 @@ jobs:
 
             **Installation:**
             1. Raspberry Pi Imager → "Use Custom" → diese Datei
-            2. SD-Karte rein, Pi booten
+            2. SD-Karte rein, Pi booten (~2 Min Firstboot)
             3. Browser → http://borochi.local
             4. SSH: `ssh borochi@borochi.local` (default-PW `borochi`, ändern!)
+            5. Waveshare-IPs konfigurieren: `sudo borochi-setup`
 
             **Verifikation:**
-            `sha256sum -c borochi-pi-*.img.xz.sha256`
+            `shasum -a 256 -c borochi-pi-*.img.xz.sha256`
+
+            **Doku:**
+            - Online: https://digihonk.github.io/borochi-docs/
+            - Offline auf dem Pi nach Boot: http://borochi.local:81
+
+            Privates Reverse-Engineering von Marcel Ebbert — kein offizielles Borochi-Produkt.
           files: |
-            pi-gen/${{ steps.out.outputs.img }}
-            pi-gen/${{ steps.out.outputs.sha }}
+            ${{ steps.out.outputs.img }}
+            ${{ steps.out.outputs.sha }}
           draft: false
           prerelease: false
