@@ -30,9 +30,10 @@ TIMEZONE_DEFAULT="Europe/Berlin"
 # stage3+ (Desktop) überspringen
 STAGE_LIST="stage0 stage1 stage2 stage-borochi stage-export-noobs"
 
-# Output-Pfade
-WORK_DIR="/pi-gen/work"
-DEPLOY_DIR="/pi-gen/deploy"
+# Output-Pfade (native pi-gen build, NICHT build-docker.sh)
+# Werden relativ zum pi-gen-Verzeichnis aufgelöst
+WORK_DIR="./work"
+DEPLOY_DIR="./deploy"
 
 # SSH-Default
 ENABLE_SSH=1
