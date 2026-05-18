@@ -1,0 +1,93 @@
+#!/bin/bash
+# borochi-setup — interaktive Konfiguration nach First-Boot
+# Fragt Waveshare-IPs ab, scannt das LAN, schreibt in .env, restartet Container.
+
+set -e
+
+ENV_FILE="/opt/borochi/.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "FEHLER: $ENV_FILE existiert nicht. First-Boot noch nicht gelaufen?"
+    exit 1
+fi
+
+if [ "$EUID" -ne 0 ]; then
+    echo "borochi-setup muss als root laufen. Nochmal mit sudo:"
+    echo "  sudo borochi-setup"
+    exit 1
+fi
+
+echo
+echo "╔══════════════════════════════════════════════╗"
+echo "║   Borochi Setup                              ║"
+echo "╠══════════════════════════════════════════════╣"
+echo "║ Konfiguriert deine Waveshare-Bridges + Login ║"
+echo "╚══════════════════════════════════════════════╝"
+echo
+
+# --- LAN-Scan nach Waveshares ---
+echo "→ Suche Waveshare-RS485-Bridges im lokalen Netz..."
+echo "  (kann 30 Sek dauern, drücke Strg+C für Skip)"
+echo
+
+# Heimnetz-Range bestimmen
+LAN_CIDR=$(ip route | awk '/proto kernel/{print $1; exit}')
+if [ -z "$LAN_CIDR" ]; then
+    LAN_CIDR="192.168.0.0/24"
+fi
+echo "  Heimnetz erkannt: $LAN_CIDR"
+
+# Port-Scan auf Port 80 (Waveshare-Web-UI)
+DETECTED=()
+if command -v nmap >/dev/null 2>&1; then
+    while read -r ip; do
+        DETECTED+=("$ip")
+    done < <(nmap -p 80 --open -oG - "$LAN_CIDR" 2>/dev/null | awk '/Up$/{print $2}' | sort -u)
+fi
+
+if [ "${#DETECTED[@]}" -gt 0 ]; then
+    echo "  Gefundene Geräte mit offenem Port 80:"
+    for ip in "${DETECTED[@]}"; do echo "    • $ip"; done
+fi
+echo
+
+# --- IPs eingeben ---
+read -rp "Waveshare-IP für Wechselrichter 1 (z.B. 192.168.178.180): " WS1
+read -rp "Waveshare-IP für Wechselrichter 2 (leer wenn nur 1 WR): " WS2
+
+if [ -n "$WS2" ]; then
+    HOSTS="$WS1,$WS2"
+else
+    HOSTS="$WS1"
+fi
+
+# In .env schreiben
+sed -i "s|^BOROCHI_WAVESHARE_HOSTS=.*|BOROCHI_WAVESHARE_HOSTS=$HOSTS|" "$ENV_FILE"
+echo
+echo "✓ Waveshare-IPs gespeichert: $HOSTS"
+
+# --- Optional: Domain ---
+echo
+read -rp "Eigene Domain für Borochi (leer = nur borochi.local): " DOMAIN
+if [ -n "$DOMAIN" ]; then
+    NEW_ORIGINS="http://borochi.local,https://borochi.local,https://$DOMAIN"
+    sed -i "s|^BOROCHI_ALLOWED_ORIGINS=.*|BOROCHI_ALLOWED_ORIGINS=$NEW_ORIGINS|" "$ENV_FILE"
+    echo "✓ Domain hinzugefügt. Du musst manuell:"
+    echo "    1. DNS A-Record für $DOMAIN auf diese IP zeigen lassen"
+    echo "    2. certbot --nginx -d $DOMAIN ausführen"
+fi
+
+# --- Container neu starten ---
+echo
+echo "→ Starte Container neu mit neuer Konfiguration..."
+cd /opt/borochi
+docker compose down
+docker compose up -d
+
+echo
+echo "╔══════════════════════════════════════════════╗"
+echo "║  Borochi läuft jetzt mit deiner Konfiguration║"
+echo "╠══════════════════════════════════════════════╣"
+printf "║  Öffne im Browser: http://borochi.local      ║\n"
+echo "║  Erste Anmeldung → Admin-User anlegen        ║"
+echo "╚══════════════════════════════════════════════╝"

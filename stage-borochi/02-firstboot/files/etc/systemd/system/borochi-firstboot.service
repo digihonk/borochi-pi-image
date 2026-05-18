@@ -1,0 +1,16 @@
+[Unit]
+Description=Borochi First-Boot Setup (run once)
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+ConditionPathExists=!/var/lib/borochi-firstboot.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/borochi-firstboot.sh
+StandardOutput=append:/var/log/borochi-firstboot.log
+StandardError=append:/var/log/borochi-firstboot.log
+RemainAfterExit=no
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,41 @@
+# pi-gen Config für borochi-pi-Image
+# Wird von pi-gen direkt eingelesen — KEINE Bash-Substitutionen die pi-gen nicht erwartet.
+
+# Image-Identität
+IMG_NAME="borochi-pi"
+RELEASE="bookworm"
+DEPLOY_COMPRESSION="xz"
+COMPRESSION_LEVEL=6
+
+# Default-User (musst du beim ersten Login ändern, PAM-erzwungen)
+FIRST_USER_NAME="borochi"
+FIRST_USER_PASS="borochi"
+DISABLE_FIRST_BOOT_USER_RENAME=1
+
+# Hostname → mDNS borochi.local
+TARGET_HOSTNAME="borochi"
+
+# Locale + Timezone
+LOCALE_DEFAULT="de_DE.UTF-8"
+KEYBOARD_KEYMAP="de"
+KEYBOARD_LAYOUT="German"
+TIMEZONE_DEFAULT="Europe/Berlin"
+
+# WiFi (User trägt das im Pi-Imager ein, hier nur Defaults)
+# WPA_COUNTRY="DE"
+# WPA_ESSID=""
+# WPA_PASSWORD=""
+
+# Stages: wir bauen auf stage0–stage2 (Lite) auf, dann unsere stage-borochi, dann stage-export
+# stage3+ (Desktop) überspringen
+STAGE_LIST="stage0 stage1 stage2 stage-borochi stage-export-noobs"
+
+# Output-Pfade
+WORK_DIR="/pi-gen/work"
+DEPLOY_DIR="/pi-gen/deploy"
+
+# SSH-Default
+ENABLE_SSH=1
+
+# Pakete die in Stage 2 schon dabei sein sollen (vor unserer Stage)
+APT_PROXY=""

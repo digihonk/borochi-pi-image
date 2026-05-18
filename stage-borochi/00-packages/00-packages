@@ -1,0 +1,17 @@
+ca-certificates
+curl
+gnupg
+jq
+avahi-daemon
+avahi-utils
+ufw
+fail2ban
+nginx-light
+docker.io
+docker-compose-v2
+openssl
+sqlite3
+git
+unzip
+htop
+nano

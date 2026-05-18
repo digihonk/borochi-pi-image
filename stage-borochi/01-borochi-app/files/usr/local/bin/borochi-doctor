@@ -1,0 +1,82 @@
+#!/bin/bash
+# borochi-doctor — Diagnose-Tool. Prüft Bridge, Agent, Waveshare, Netz.
+
+set +e
+
+echo "╔══════════════════════════════════════╗"
+echo "║   Borochi Doctor                     ║"
+echo "╚══════════════════════════════════════╝"
+echo
+
+# --- Hostname / mDNS ---
+echo "▶ Hostname & mDNS"
+echo "  hostname: $(hostname)"
+echo "  fqdn:     $(hostname -f)"
+if pgrep -x avahi-daemon >/dev/null; then
+    echo "  avahi-daemon: ✓ läuft"
+else
+    echo "  avahi-daemon: ✗ steht — borochi.local funktioniert nicht!"
+fi
+echo
+
+# --- Docker ---
+echo "▶ Docker"
+if systemctl is-active docker >/dev/null 2>&1; then
+    echo "  docker.service: ✓ läuft"
+else
+    echo "  docker.service: ✗ steht"
+fi
+
+cd /opt/borochi 2>/dev/null
+if [ -f /opt/borochi/docker-compose.yml ]; then
+    docker compose ps --format "  {{.Service}}: {{.Status}}"
+else
+    echo "  docker-compose.yml fehlt unter /opt/borochi/"
+fi
+echo
+
+# --- Bridge-Health ---
+echo "▶ Bridge"
+if BR=$(curl -sf --max-time 3 http://127.0.0.1/api/health 2>/dev/null); then
+    echo "  /api/health: ✓ $BR"
+else
+    echo "  /api/health: ✗ nicht erreichbar"
+fi
+echo
+
+# --- Waveshare-Verbindung ---
+echo "▶ Waveshare-Verbindung"
+HOSTS=$(grep '^BOROCHI_WAVESHARE_HOSTS=' /opt/borochi/.env 2>/dev/null | cut -d= -f2)
+if [ -z "$HOSTS" ]; then
+    echo "  Keine Hosts konfiguriert. Bitte 'sudo borochi-setup' ausführen."
+else
+    IFS=',' read -ra HOST_ARR <<< "$HOSTS"
+    for h in "${HOST_ARR[@]}"; do
+        if ping -c 1 -W 1 "$h" >/dev/null 2>&1; then
+            ping_status="✓ Ping ok"
+        else
+            ping_status="✗ Ping fail"
+        fi
+        if timeout 2 bash -c "cat </dev/tcp/$h/502" >/dev/null 2>&1; then
+            tcp_status="✓ TCP 502 offen"
+        else
+            tcp_status="✗ TCP 502 zu"
+        fi
+        echo "  $h: $ping_status · $tcp_status"
+    done
+fi
+echo
+
+# --- Disk & RAM ---
+echo "▶ System"
+echo "  Disk /: $(df -h / | awk 'NR==2{print $4 " frei / " $2 " total"}')"
+echo "  RAM:    $(free -h | awk 'NR==2{print $7 " frei / " $2 " total"}')"
+echo "  Uptime: $(uptime -p)"
+echo
+
+# --- Logs-Hinweis ---
+echo "▶ Wo finde ich Logs?"
+echo "  Bridge:   docker compose -f /opt/borochi/docker-compose.yml logs --tail=50 borochi-bridge"
+echo "  Agent:    docker compose -f /opt/borochi/docker-compose.yml logs --tail=50 borochi-agent"
+echo "  Firstboot: /var/log/borochi-firstboot.log"
+echo "  System:   journalctl -u borochi-firstboot"

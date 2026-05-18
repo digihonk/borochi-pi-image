@@ -1,0 +1,15 @@
+# pi-gen Build-Artefakte
+work/
+deploy/
+pi-gen/work/
+pi-gen/deploy/
+
+# macOS
+.DS_Store
+
+# Lokale Overrides
+config.local
+.env.local
+
+# Logs
+*.log

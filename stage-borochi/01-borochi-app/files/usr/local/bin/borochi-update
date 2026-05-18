@@ -1,0 +1,36 @@
+#!/bin/bash
+# borochi-update — zieht neue Docker-Images und startet die Container neu
+# Lass die System-Updates dem Pi-OS-Mechanismus, das hier nur die App.
+
+set -e
+
+if [ "$EUID" -ne 0 ]; then
+    echo "borochi-update muss als root laufen:"
+    echo "  sudo borochi-update"
+    exit 1
+fi
+
+echo "→ Backup der Bridge-DB..."
+BACKUP_DIR="/opt/borochi/backups"
+mkdir -p "$BACKUP_DIR"
+TS=$(date +%F-%H%M%S)
+if [ -f /opt/borochi/data/bridge.db ]; then
+    sqlite3 /opt/borochi/data/bridge.db ".backup $BACKUP_DIR/bridge-$TS.db"
+    echo "  ✓ Backup: $BACKUP_DIR/bridge-$TS.db"
+fi
+
+echo "→ Hole neue Docker-Images..."
+cd /opt/borochi
+docker compose pull
+
+echo "→ Starte Container neu..."
+docker compose up -d
+
+echo "→ Räume alte Images auf..."
+docker image prune -f >/dev/null
+
+echo
+echo "✓ Update fertig. Aktuelle Versionen:"
+docker compose ps --format "{{.Service}}: {{.Image}}"
+echo
+echo "  Bei Problemen: borochi-doctor oder Logs via 'docker compose logs'"

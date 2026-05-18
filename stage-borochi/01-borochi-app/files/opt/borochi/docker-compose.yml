@@ -1,0 +1,52 @@
+# Borochi All-in-One auf Raspberry Pi
+# Bridge + Agent laufen lokal, Agent connectet via internem Netz zur Bridge.
+
+services:
+  borochi-bridge:
+    image: ghcr.io/digihonk/borochi-bridge:latest
+    container_name: borochi-bridge
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+    volumes:
+      - /opt/borochi/data:/var/lib/borochi-bridge
+    env_file:
+      - /opt/borochi/.env
+    environment:
+      BOROCHI_ALLOWED_ORIGINS: "http://borochi.local,https://borochi.local"
+    user: "1500:1500"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - borochi-net
+
+  borochi-agent:
+    image: ghcr.io/digihonk/borochi-agent:latest
+    container_name: borochi-agent
+    restart: unless-stopped
+    depends_on:
+      - borochi-bridge
+    env_file:
+      - /opt/borochi/.env
+    environment:
+      BOROCHI_BRIDGE_URL: "ws://borochi-bridge:8080/ws/agent"
+      # WAVESHARE_HOSTS wird von borochi-setup gesetzt
+    user: "1501:1501"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - borochi-net
+
+networks:
+  borochi-net:
+    driver: bridge
